@@ -131,13 +131,3 @@ Per verificare l'efficacia del fix, prova questi prompt nell'interfaccia:
 ├── .env                # File configurazione (da non committare)
 └── templates/
     └── index.html      # Frontend: UI + Logica JS di fix rendering
-
-```
-
----
-
-
-
-```
-
-```
