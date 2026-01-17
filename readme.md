@@ -1,5 +1,7 @@
 # 🌊 LLM Stream & LaTeX Fixer
 
+![Funzionameto](imagework.png)
+
 Un "Proof of Concept" (PoC) che dimostra come gestire flussi di risposta LLM (Google Gemini) in tempo reale, risolvendo i comuni problemi di rendering di Markdown e LaTeX incompleti.
 
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue?style=flat&logo=python)
