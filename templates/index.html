@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini Stream Fixer</title>
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    
+    <style>
+        body { font-family: sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; background: #f4f4f9; }
+        #chat-box { background: white; padding: 20px; border-radius: 8px; min-height: 200px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; line-height: 1.6; }
+        .input-group { display: flex; gap: 10px; }
+        input { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 4px; }
+        button { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:disabled { background: #ccc; }
+        
+        /* Stile semplice per il markdown */
+        pre { background: #eee; padding: 10px; border-radius: 4px; overflow-x: auto; }
+        code { font-family: monospace; background: #eee; padding: 2px 4px; border-radius: 3px; }
+    </style>
+</head>
+<body>
+
+    <h2>Gemini Streaming + LaTeX Fix</h2>
+    
+    <div id="chat-box">
+        <p style="color: #888;">Scrivi un prompt che richiede formule (es: "Spiegami il teorema di Pitagora con le formule")</p>
+    </div>
+
+    <div class="input-group">
+        <input type="text" id="user-input" placeholder="Chiedi qualcosa..." value="Scrivimi l'equazione di Schrödinger e una tabella 2x2">
+        <button onclick="sendMessage()" id="send-btn">Invia</button>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+
+    <script>
+        const chatBox = document.getElementById('chat-box');
+        const userInput = document.getElementById('user-input');
+        const sendBtn = document.getElementById('send-btn');
+
+        // 1. Funzione euristica per "riparare" il LaTeX rotto durante lo streaming
+        function fixIncompleteLatex(text) {
+            // Conta quanti dollari ci sono
+            const doubleDollars = (text.match(/\$\$/g) || []).length;
+            
+            // Se i dollari sono dispari, significa che c'è un blocco aperto non chiuso
+            if (doubleDollars % 2 !== 0) {
+                return text + " $$"; // Chiudiamo forzatamente per il render corrente
+            }
+            
+            // Nota: Si potrebbe aggiungere logica per '(' e ')' o '\[' ma $$ è il più comune
+            return text;
+        }
+
+        async function sendMessage() {
+            const text = userInput.value;
+            if (!text) return;
+            
+            // UI Reset
+            chatBox.innerHTML = ''; 
+            userInput.disabled = true;
+            sendBtn.disabled = true;
+
+            try {
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: text })
+                });
+
+                // Lettura dello stream
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let accumulatedText = "";
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    // Decodifica il chunk (bytes -> string)
+                    const chunk = decoder.decode(value, { stream: true });
+                    accumulatedText += chunk;
+
+                    // 2. APPLICAZIONE DEL FIX
+                    // Prima di passare al markdown parser, ripariamo il LaTeX
+                    const safeText = fixIncompleteLatex(accumulatedText);
+
+                    // 3. RENDERIZZAZIONE
+                    // Convertiamo MD -> HTML
+                    const htmlContent = marked.parse(safeText);
+                    chatBox.innerHTML = htmlContent;
+
+                    // Renderizziamo le formule matematiche nell'HTML appena iniettato
+                    renderMathInElement(chatBox, {
+                        delimiters: [
+                            {left: '$$', right: '$$', display: true},
+                            {left: '$', right: '$', display: false}
+                        ],
+                        throwOnError: false 
+                    });
+                }
+
+            } catch (error) {
+                console.error("Errore:", error);
+                chatBox.innerHTML += `<p style="color:red">Errore nella connessione</p>`;
+            } finally {
+                userInput.disabled = false;
+                sendBtn.disabled = false;
+                userInput.focus();
+            }
+        }
+    </script>
+</body>
+</html>
